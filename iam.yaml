@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'IAM ROLE AND USER CREATION'
+
+Parameters:
+  Password:
+    NoEcho: 'false'
+    Type: String
+    Description: New account password
+    MinLength: '1'
+    MaxLength: '41'
+    ConstraintDescription: the password must be between 1 and 41 characters
+
+Resources:
+  AdminUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: AdminUser
+      LoginProfile:
+        Password: !Ref 'Password'
+
+  User:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: UserA
+      LoginProfile:
+        Password: !Ref 'Password'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonRDSFullAccess
+        - !Ref 'myCustomerManagedPolicyForEC2'
+
+  myCustomerManagedPolicyForEC2:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: customerManagedEC2ReadOnlyPolicy #name to this policy
+      Description: Customer managed policy for read only access to EC2 instance
+      Path: '/'
+      PolicyDocument: #JSON policy document 
+        Version: '2012-10-17'
+        Statement: # allow read only access to EC2 instance
+          - Effect: Allow
+            Action: 'ec2:Describe'
+            Resource: '*'
+
+  UserGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: UserGroup
+
+  AdminGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: AdminGroup
+
+  Users:
+    Type: AWS::IAM::UserToGroupAddition
+    Properties:
+      GroupName: !Ref 'UserGroup'
+      Users: [!Ref 'User']
+
+  Admins:
+    Type: AWS::IAM::UserToGroupAddition
+    Properties:
+      GroupName: !Ref 'AdminGroup'
+      Users: [!Ref 'AdminUser']
+
+  UserPolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: CloudFormationReadOnly
+      PolicyDocument: # JSON policy document
+        Statement:
+        - Effect: Allow
+          Action: ['cloudformation:Describe*', 'cloudformation:List*', 'cloudformation:Get*']
+          Resource: '*'
+      Groups: [!Ref 'UserGroup']
+  
+  AdminPolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: CloudFormationAdmin
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action: cloudformation:*
+          Resource: '*'
+      Groups: [!Ref 'AdminGroup']
+
+  Keys:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref 'AdminUser'
+
+Outputs:
+  AccessKey:
+    Value: !Ref 'Keys'
+    Description: AWSAccessKeyId of new user
+  SecretKey:
+    Value: !GetAtt [Keys, SecretAccessKey]
+    Description: AWSSecretAccessKey of new user
