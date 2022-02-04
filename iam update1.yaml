@@ -114,6 +114,7 @@ Resources:
 
   MFAdevice:
     Type: AWS::IAM::VirtualMFADevice
+    DependsOn: AdminUser
     Properties: 
       Path: '/'
       Users: 

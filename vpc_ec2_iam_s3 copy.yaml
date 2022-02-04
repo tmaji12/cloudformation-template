@@ -2,6 +2,15 @@ AWSTemplateFormatVersion: '2010-09-09'
 
 Description: 'NEW VPC CREATION WITH EC2 SERVERS ALONG WITH ALB AND S3 BUCKET'
 
+Mappings:
+  AmiIdMap:
+    AmazonLinux:
+      "AMI": "AWS::SSM::Parameter::Value/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+    Windows2012:
+      "AMI": "AWS::SSM::Parameter::Value/aws/service/ami-windows-latest/Windows_Server-2012-R2-English-STIG-Core"
+    Windows2016:
+      "AMI": "AWS::SSM::Parameter::Value/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-Base"
+
 Parameters:                                   # Parameter Block
   ParaCidrBlock:                              # VPC CIDR
     Type: String
@@ -53,12 +62,19 @@ Parameters:                                   # Parameter Block
     AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
     ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.  
 
+  #LatestAmiId:
+  #  Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+  #  AllowedValues: ["/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2", "/aws/service/ami-windows-latest/Windows_Server-2012-R2-English-STIG-Core"]
+  #  #Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  #  #AllowedValues: ['/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2', '/aws/service/ami-windows-latest/Windows_Server-2012-R2-English-STIG-Core' , '/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-Base', '/aws/service/ami-amazon-linux-latest/amzn-ami-hvm-x86_64-ebs']
+  #  ConstraintDescription: Choose an AMI for EC2
+
   LatestAmiId:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    #AllowedValues: ["/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2", "/aws/service/ami-windows-latest/Windows_Server-2012-R2-English-STIG-Core"]
-    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
-    #AllowedValues: ['/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2', '/aws/service/ami-windows-latest/Windows_Server-2012-R2-English-STIG-Core' , '/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-Base', '/aws/service/ami-amazon-linux-latest/amzn-ami-hvm-x86_64-ebs']
+    Type: String
+    Default: AmazonLinux
+    AllowedValues: [AmazonLinux, Windows2012, Windows2016]
     ConstraintDescription: Choose an AMI for EC2
+
 
 Resources:                                    # Resource Block
   VPC:                                        # VPC Creation
@@ -203,7 +219,7 @@ Resources:                                    # Resource Block
   S3FullPolicies:                             # Managed Policy S3 full access
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
-      ManagedPolicyName: S3-Full_access
+      ManagedPolicyName: !Sub ${AWS::StackName}-S3-Full_access
       Description: Customer managed policy for read only access to EC2 instance
       Path: '/'
       PolicyDocument: 
@@ -245,7 +261,8 @@ Resources:                                    # Resource Block
   EC2Instance1:                               # New EC2 Instance
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: !Ref LatestAmiId
+      ImageId: !FindInMap [AmiIdMap, !Ref "LatestAmiId", AMI]
+      #ImageId: !Ref Ami
       InstanceType: !Ref InstanceType
       SubnetId: !Ref PublicSubnetB
       SecurityGroupIds: 
@@ -265,7 +282,8 @@ Resources:                                    # Resource Block
   EC2Instance2:                               # New EC2 Instance
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: !Ref LatestAmiId
+      ImageId: !FindInMap [AmiIdMap, !Ref "LatestAmiId", AMI]
+      #ImageId: !Ref Ami
       SubnetId: !Ref PublicSubnetA
       InstanceType: !Ref InstanceType
       BlockDeviceMappings:
@@ -288,7 +306,7 @@ Resources:                                    # Resource Block
 
   NewVolume:                                  # New EBS Volume
     Type: AWS::EC2::Volume
-    DeletionPolicy: Delete
+    DeletionPolicy: Snapshot
     Properties:
       AvailabilityZone: !GetAtt EC2Instance1.AvailabilityZone
       Size: 2
